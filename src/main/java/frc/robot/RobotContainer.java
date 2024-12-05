@@ -60,11 +60,10 @@ public class RobotContainer {
         // A split-stick arcade command, with forward/backward controlled by the left
         // hand, and turning controlled by the right.
         new RunCommand(
-            () -> m_robotDrive.drive(
+            () -> m_robotDrive.driveTeleop(
                 -m_driverController.getLeftY(),
-                -m_driverController.getRightX(),
                 -m_driverController.getLeftX(),
-                false),
+                m_driverController.getRightX()),
             m_robotDrive));
 
     m_robotArm.setDefaultCommand(new RunCommand(() -> {
@@ -83,10 +82,11 @@ public class RobotContainer {
    * {@link JoystickButton}.
    */
   private void configureButtonBindings() {
-    // Drive at half speed when the right bumper is held
+    new JoystickButton(m_driverController, Button.kLeftBumper.value)
+        .onTrue(new InstantCommand(() -> m_robotDrive.toggleGyro()));
+
     new JoystickButton(m_driverController, Button.kRightBumper.value)
-        .onTrue(new InstantCommand(() -> m_robotDrive.setMaxOutput(0.5)))
-        .onFalse(new InstantCommand(() -> m_robotDrive.setMaxOutput(1)));
+        .onTrue(new InstantCommand(() -> m_robotDrive.toggleFieldCentric()));
 
     new JoystickButton(m_driverController, Button.kA.value)
         .whileTrue(new RunCommand(() -> m_robotDrive.zeroHeading(), m_robotDrive));

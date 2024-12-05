@@ -25,6 +25,7 @@ import edu.wpi.first.wpilibj.I2C.Port;
 import edu.wpi.first.wpilibj.drive.MecanumDrive;
 import frc.robot.GoBildaPinpoint;
 import frc.robot.Constants.DriveConstants;
+import frc.robot.GoBildaPinpoint.EncoderDirection;
 import frc.robot.GoBildaPinpoint.GoBildaOdometryPods;
 import edu.wpi.first.wpilibj.motorcontrol.Spark;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
@@ -35,6 +36,12 @@ public class DriveSubsystem extends SubsystemBase {
   private final Spark m_rearLeft = new Spark(DriveConstants.kRearLeftMotorPort);
   private final Spark m_frontRight = new Spark(DriveConstants.kFrontRightMotorPort);
   private final Spark m_rearRight = new Spark(DriveConstants.kRearRightMotorPort);
+
+  @Logged
+  private boolean m_fieldCentric = true;
+
+  @Logged
+  private boolean m_useOculusGyro = true;
 
   private final MecanumDrive m_drive = new MecanumDrive(m_frontLeft::set, m_rearLeft::set, m_frontRight::set,
       m_rearRight::set);
@@ -119,7 +126,7 @@ public class DriveSubsystem extends SubsystemBase {
   @NotLogged
   MecanumDriveOdometry m_odometry = new MecanumDriveOdometry(
       DriveConstants.kDriveKinematics,
-      getOculusRotation2d(),
+      getPinpointRotation2d(),
       new MecanumDriveWheelPositions());
 
   /** Creates a new DriveSubsystem. */
@@ -141,13 +148,15 @@ public class DriveSubsystem extends SubsystemBase {
     m_rearRight.setInverted(true);
 
     m_pinpoint.setEncoderResolution(GoBildaOdometryPods.goBILDA_4_BAR_POD);
+    m_pinpoint.setEncoderDirections(EncoderDirection.FORWARD, EncoderDirection.REVERSED);
     m_pinpoint.setPosition(new Pose2d(new Translation2d(0, 0), new Rotation2d(0)));
+    m_pinpoint.setOffsets(84, -368);
   }
 
   @Override
   public void periodic() {
     // Update the odometry in the periodic block
-    m_odometry.update(getOculusRotation2d(), getCurrentWheelDistances());
+    m_odometry.update(getPinpointRotation2d(), getCurrentWheelDistances());
     m_pinpoint.update();
   }
 
@@ -166,8 +175,9 @@ public class DriveSubsystem extends SubsystemBase {
    * @param pose The pose to which to set the odometry.
    */
   public void resetOdometry(Pose2d pose) {
-    m_odometry.resetPosition(getOculusRotation2d(), getCurrentWheelDistances(), pose);
     m_pinpoint.setPosition(pose);
+    m_odometry.resetPosition(pose.getRotation(), getCurrentWheelDistances(), pose);
+    
   }
 
   /**
@@ -184,10 +194,26 @@ public class DriveSubsystem extends SubsystemBase {
    */
   public void drive(double xSpeed, double ySpeed, double rot, boolean fieldRelative) {
     if (fieldRelative) {
-      m_drive.driveCartesian(xSpeed, ySpeed, rot, getOculusRotation2d());
+      m_drive.driveCartesian(xSpeed, ySpeed, rot, getPinpointRotation2d());
     } else {
       m_drive.driveCartesian(xSpeed, ySpeed, rot);
     }
+  }
+
+  public void driveTeleop(double xSpeed, double ySpeed, double rot) {
+    if (m_fieldCentric) {
+      m_drive.driveCartesian(xSpeed, ySpeed, rot, m_useOculusGyro ? getOculusRotation2d() : getPinpointRotation2d());
+    } else {
+      m_drive.driveCartesian(xSpeed, ySpeed, rot);
+    }
+  }
+
+  public void toggleFieldCentric() {
+    m_fieldCentric = !m_fieldCentric;
+  }
+
+  public void toggleGyro() {
+    m_useOculusGyro = !m_useOculusGyro;
   }
 
   /** Sets the front left drive MotorController to a voltage. */
@@ -250,8 +276,8 @@ public class DriveSubsystem extends SubsystemBase {
   public MecanumDriveWheelSpeeds getCurrentWheelSpeeds() {
     return new MecanumDriveWheelSpeeds(
         m_frontLeftEncoder.getRate(),
-        m_rearLeftEncoder.getRate(),
         m_frontRightEncoder.getRate(),
+        m_rearLeftEncoder.getRate(),
         m_rearRightEncoder.getRate());
   }
 
@@ -264,8 +290,8 @@ public class DriveSubsystem extends SubsystemBase {
   public MecanumDriveWheelPositions getCurrentWheelDistances() {
     return new MecanumDriveWheelPositions(
         m_frontLeftEncoder.getDistance(),
-        m_rearLeftEncoder.getDistance(),
         m_frontRightEncoder.getDistance(),
+        m_rearLeftEncoder.getDistance(),
         m_rearRightEncoder.getDistance());
   }
 
@@ -345,5 +371,9 @@ public class DriveSubsystem extends SubsystemBase {
 
   public double getPinpointEncoderY() {
     return m_pinpoint.getEncoderY();
+  }
+
+  public Rotation2d getPinpointRotation2d() {
+    return m_pinpoint.getHeading();
   }
 }
